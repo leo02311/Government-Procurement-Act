@@ -1,0 +1,528 @@
+
+    <!DOCTYPE html>
+    <html lang="zh-TW" data-bs-theme="light">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>法規題庫測驗系統</title>
+        <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+        <link rel="prefetch" href="graph_data.json" as="fetch" crossorigin>
+        <link rel="prefetch" href="graph.html" as="document">
+        <style>
+            body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; transition: background-color 0.3s, color 0.3s; }
+            
+            /* Stats Panel */
+            .stats-panel { background-color: var(--bs-body-bg); border-radius: 10px; padding: 20px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); margin-bottom: 25px; text-align: center; border: 1px solid var(--bs-border-color); transition: all 0.3s; }
+            .stats-number { font-size: 2em; font-weight: bold; color: #0d6efd; }
+            
+            /* Question Cards */
+            .question-card { margin-bottom: 20px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); border: 1px solid var(--bs-border-color); background-color: var(--bs-body-bg); transition: all 0.3s; }
+            .laws-badge { margin-right: 5px; margin-bottom: 5px; }
+            .category-badge { font-size: 0.9em; margin-bottom: 10px; display: inline-block; }
+            
+            /* Option List */
+            .option-list { list-style-type: none; padding-left: 0; }
+            .option-item { padding: 15px; border: 2px solid var(--bs-border-color); margin-bottom: 10px; border-radius: 8px; cursor: pointer; transition: all 0.2s; background-color: var(--bs-tertiary-bg); }
+            .option-item:hover:not(.locked) { background-color: var(--bs-secondary-bg); border-color: var(--bs-primary); }
+            
+            /* Answer Status Colors (Light) */
+            .option-item.correct { border-color: #198754; background-color: #d1e7dd; color: #0f5132; }
+            .option-item.wrong { border-color: #dc3545; background-color: #f8d7da; color: #842029; }
+            
+            /* Answer Status Colors (Dark) */
+            [data-bs-theme="dark"] .option-item.correct { border-color: #198754; background-color: #0f5132; color: #d1e7dd; }
+            [data-bs-theme="dark"] .option-item.wrong { border-color: #dc3545; background-color: #842029; color: #f8d7da; }
+            
+            .option-item.locked { cursor: default; }
+            .option-item.locked-unselected { opacity: 0.7; }
+            
+            /* Explanations */
+            .option-explanation { display: none; background-color: var(--bs-tertiary-bg); padding: 12px; margin-top: 10px; border-radius: 5px; font-size: 0.95em; color: var(--bs-body-color); border: 1px solid var(--bs-border-color); transition: all 0.3s; }
+            
+            /* Checkbox Grid */
+            .category-checkboxes { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 15px; padding: 15px; background: var(--bs-tertiary-bg); border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); border: 1px solid var(--bs-border-color); transition: all 0.3s; }
+            
+            #pagination { justify-content: center; margin-top: 30px; margin-bottom: 50px; }
+            
+            /* Fullscreen Loader */
+            #fullscreen-loader {
+                position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
+                background-color: var(--bs-body-bg); z-index: 9999;
+                display: flex; flex-direction: column; justify-content: center; align-items: center;
+                transition: opacity 0.5s;
+            }
+            #fullscreen-loader .spinner-border { width: 3rem; height: 3rem; margin-bottom: 20px; }
+            [data-bs-theme="dark"] #fullscreen-loader { background-color: #121212; color: #fff; }
+        </style>
+    </head>
+    <body>
+        <div id="fullscreen-loader">
+            <div class="spinner-border text-primary" role="status"></div>
+            <h4>載入題庫中，請稍候...</h4>
+            <div class="text-muted mt-2" style="font-size: 0.9em;">首次載入約需 1~2 秒</div>
+        </div>
+        <div class="container py-4">
+            <h1 class="mb-2 text-center">🏆 政府採購法測驗系統</h1>
+            <div class="text-center text-muted mb-3" style="font-size: 0.9em;">最後更新日期：2026-06-02</div>
+            <div class="text-center mb-4">
+                <a href="graph.html" class="btn btn-outline-success me-2 mb-2">🌌 前往極限語意圖譜 (法規與主題關聯)</a>
+                <button class="btn btn-outline-secondary me-2 mb-2" id="theme-toggle">🌓 切換深淺模式</button>
+            </div>
+            
+            <!-- 成績統計面板 -->
+            <div class="stats-panel row position-relative">
+                <button class="btn btn-sm btn-outline-danger position-absolute top-0 end-0 m-2" style="width: auto; z-index: 10;" id="clear-records-btn" title="清除所有作答進度與錯題本">🗑️ 清除紀錄</button>
+                <div class="col-4">
+                    <div class="text-muted">作答題數</div>
+                    <div class="stats-number" id="stat-answered">0</div>
+                </div>
+                <div class="col-4">
+                    <div class="text-muted">答對題數</div>
+                    <div class="stats-number text-success" id="stat-correct">0</div>
+                </div>
+                <div class="col-4">
+                    <div class="text-muted">正確率</div>
+                    <div class="stats-number text-warning" id="stat-accuracy">0%</div>
+                </div>
+            </div>
+            
+            <!-- 過濾器區塊 -->
+            <div class="row mb-4">
+                <div class="col-12">
+                    <input type="text" id="searchInput" class="form-control mb-3" placeholder="🔍 搜尋題目、關鍵字或法規名稱...">
+                    
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <button class="btn btn-outline-primary" type="button" data-bs-toggle="collapse" data-bs-target="#categoryCollapse" aria-expanded="false">
+                            📁 展開/隱藏 測驗分類設定
+                        </button>
+                        
+                        <div class="form-check form-switch fs-5">
+                            <input class="form-check-input" type="checkbox" id="check-wrong-only">
+                            <label class="form-check-label text-danger fw-bold" for="check-wrong-only">
+                                ❌ 僅顯示我的錯題本
+                            </label>
+                        </div>
+                    </div>
+                    
+                    <div class="collapse" id="categoryCollapse">
+                        <div class="category-checkboxes" style="max-height: 200px; overflow-y: auto;">
+                            <div class="form-check me-3">
+                                <input class="form-check-input category-cb" type="checkbox" value="ALL" id="cat-all" checked>
+                                <label class="form-check-label fw-bold text-primary" for="cat-all">全選</label>
+                            </div>
+                            <div class="w-100 border-bottom my-2"></div>
+                            <script>
+                                const categories = ["不良廠商", "優先採購環保產品", "共同供應契約", "共同投標", "分包", "分包廠商", "分段開標", "分項複數決標", "勞務採購", "印花稅", "委託研究", "專業服務", "專業服務採購", "專業服務計費", "履約保證金", "履約管理", "工程及技術服務", "巨額採購", "底價", "底價管理", "底價訂定", "廠商資格", "房地產採購", "技術服務", "技術服務採購", "技術規格", "投標廠商家數", "投標廠商資格", "投標廠商資格與特殊或巨額採購認定標準", "投標文件", "投標文件審查", "投標資格", "押標金", "押標金保證金", "押標金與保證金", "拒絕往來廠商", "招標", "招標作業", "招標文件", "招標期限", "招標程序", "採購人員倫理", "採購倫理", "採購契約", "採購契約要項", "採購契約變更", "採購實務", "採購履約爭議調解", "採購招標", "採購法第100條", "採購法第101條", "採購法第102條", "採購法第103條", "採購法第14條", "採購法第15條", "採購法第16條", "採購法第17條", "採購法第96條", "採購法總則", "採購法規", "採購法適用範圍", "採購申訴", "採購監辦", "採購程序", "採購稽核小組", "採購評選委員會", "採購金額", "採購金額認定", "採購錯誤行為", "採購限制", "政府採購法", "政府採購法之爭議處理", "政府採購法之總則、招標及決標", "政府採購資訊", "替代方案", "最有利標", "機關委託技術服務廠商評選及計費辦法", "機關委託資訊服務廠商評選及計費辦法", "決標", "決標原則", "決標程序", "決標與簽約", "爭議處理", "監辦", "研究發展採購", "統包", "綜合", "罰則", "藝文採購", "評選項目", "財物及勞務採購", "資訊服務", "資訊服務採購", "轉包與分包", "適用範圍", "選擇性招標", "錯誤採購態樣", "開標作業", "開標程序", "限制性招標", "電子採購", "電子採購實務", "預算與預計金額", "預算金額", "驗收"];
+                                categories.forEach((c, idx) => {
+                                    document.write(`
+                                        <div class="form-check me-3" style="width: 200px;">
+                                            <input class="form-check-input category-cb" type="checkbox" value="${c}" id="cat-${idx}" checked>
+                                            <label class="form-check-label text-truncate" style="max-width: 170px;" title="${c}" for="cat-${idx}">${c}</label>
+                                        </div>
+                                    `);
+                                });
+                            </script>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="row" id="questionsContainer">
+                <!-- 題目將會透過 JavaScript 動態渲染到這裡 -->
+            </div>
+            
+            <nav>
+              <ul class="pagination" id="pagination"></ul>
+            </nav>
+            
+        </div>
+        
+        <script>
+            // Theme setup
+            const themeToggle = document.getElementById('theme-toggle');
+            let currentTheme = localStorage.getItem('theme') || 'light';
+            document.documentElement.setAttribute('data-bs-theme', currentTheme);
+            
+            themeToggle.addEventListener('click', () => {
+                currentTheme = currentTheme === 'light' ? 'dark' : 'light';
+                document.documentElement.setAttribute('data-bs-theme', currentTheme);
+                localStorage.setItem('theme', currentTheme);
+            });
+            
+            // Data
+            let allQuestions = [];
+            
+            // State
+            let currentPage = 1;
+            const itemsPerPage = 10;
+            let filteredItems = [];
+            
+            // User Stats Memory
+            let userStats = JSON.parse(localStorage.getItem('pcc_stats')) || { answered: 0, correct: 0 };
+            let wrongQuestions = JSON.parse(localStorage.getItem('pcc_wrong_questions')) || [];
+            
+            // Local state for current session answers to keep track of locked questions
+            let sessionAnswers = JSON.parse(localStorage.getItem('pcc_session_answers')) || {}; 
+            
+            document.addEventListener("DOMContentLoaded", function() {
+                updateStatsUI();
+                setupFilters();
+                
+                // Fetch data asynchronously
+                fetch('all_practices_analyzed.json')
+                    .then(response => {
+                        if (!response.ok) throw new Error("網路錯誤或找不到題庫檔案");
+                        return response.json();
+                    })
+                    .then(data => {
+                        allQuestions = data;
+                        filteredItems = [...allQuestions];
+                        renderList();
+                        
+                        // Hide loader and free memory
+                        const loader = document.getElementById('fullscreen-loader');
+                        loader.style.opacity = '0';
+                        setTimeout(() => {
+                            loader.style.display = 'none';
+                        }, 500);
+                    })
+                    .catch(error => {
+                        document.getElementById('fullscreen-loader').innerHTML = `
+                            <div class="text-danger mb-3" style="font-size: 2rem;">❌ 載入失敗</div>
+                            <div class="text-muted mb-4">${error.message}</div>
+                            <button class="btn btn-outline-primary" onclick="location.reload()">重新整理</button>
+                        `;
+                    });
+            });
+            
+            function escapeHtml(unsafe) {
+                if (!unsafe) return "";
+                return unsafe.toString()
+                     .replace(/&/g, "&amp;")
+                     .replace(/</g, "&lt;")
+                     .replace(/>/g, "&gt;")
+                     .replace(/"/g, "&quot;")
+                     .replace(/'/g, "&#039;")
+                     .replace(/\n/g, "<br>");
+            }
+            
+            function updateStatsUI() {
+                document.getElementById('stat-answered').innerText = userStats.answered;
+                document.getElementById('stat-correct').innerText = userStats.correct;
+                let accuracy = userStats.answered === 0 ? 0 : Math.round((userStats.correct / userStats.answered) * 100);
+                document.getElementById('stat-accuracy').innerText = accuracy + '%';
+                
+                // Save to storage
+                localStorage.setItem('pcc_stats', JSON.stringify(userStats));
+                localStorage.setItem('pcc_wrong_questions', JSON.stringify(wrongQuestions));
+                localStorage.setItem('pcc_session_answers', JSON.stringify(sessionAnswers));
+            }
+            
+            function setupFilters() {
+                // Restore filters from localStorage
+                try {
+                    const savedFilters = JSON.parse(localStorage.getItem('pcc_filters'));
+                    if (savedFilters) {
+                        if (savedFilters.query) document.getElementById('searchInput').value = savedFilters.query;
+                        if (savedFilters.wrongOnly) document.getElementById('check-wrong-only').checked = savedFilters.wrongOnly;
+                        
+                        if (savedFilters.categories) {
+                            const catAll = document.getElementById('cat-all');
+                            const catCbs = document.querySelectorAll('.category-cb:not(#cat-all)');
+                            let allChecked = true;
+                            catCbs.forEach(cb => {
+                                cb.checked = savedFilters.categories.includes(cb.value);
+                                if (!cb.checked) allChecked = false;
+                            });
+                            catAll.checked = allChecked;
+                        }
+                    }
+                } catch(e) {}
+                
+                let debounceTimer;
+                document.getElementById('searchInput').addEventListener('input', () => {
+                    clearTimeout(debounceTimer);
+                    debounceTimer = setTimeout(() => { currentPage = 1; renderList(); }, 300);
+                });
+                document.getElementById('check-wrong-only').addEventListener('change', () => { currentPage = 1; renderList(); });
+                
+                const catAll = document.getElementById('cat-all');
+                const catCbs = document.querySelectorAll('.category-cb:not(#cat-all)');
+                
+                catAll.addEventListener('change', (e) => {
+                    catCbs.forEach(cb => cb.checked = e.target.checked);
+                    currentPage = 1; renderList();
+                });
+                
+                catCbs.forEach(cb => {
+                    cb.addEventListener('change', () => {
+                        const allChecked = Array.from(catCbs).every(c => c.checked);
+                        catAll.checked = allChecked;
+                        currentPage = 1; renderList();
+                    });
+                });
+                
+                document.getElementById('clear-records-btn')?.addEventListener('click', () => {
+                    if(confirm('確定要清除所有作答紀錄與錯題本嗎？這將無法復原。')) {
+                        localStorage.removeItem('pcc_stats');
+                        localStorage.removeItem('pcc_wrong_questions');
+                        localStorage.removeItem('pcc_session_answers');
+                        userStats = { answered: 0, correct: 0 };
+                        wrongQuestions = [];
+                        sessionAnswers = {};
+                        updateStatsUI();
+                        currentPage = 1;
+                        renderList();
+                    }
+                });
+            }
+            
+            function renderList() {
+                const query = document.getElementById('searchInput').value.toLowerCase();
+                const wrongOnly = document.getElementById('check-wrong-only').checked;
+                
+                // Get checked categories
+                const catCbs = document.querySelectorAll('.category-cb:not(#cat-all)');
+                const selectedCats = Array.from(catCbs).filter(cb => cb.checked).map(cb => cb.value);
+                
+                // Save filters efficiently
+                clearTimeout(window.saveFiltersTimer);
+                window.saveFiltersTimer = setTimeout(() => {
+                    localStorage.setItem('pcc_filters', JSON.stringify({
+                        query: document.getElementById('searchInput').value,
+                        wrongOnly: wrongOnly,
+                        categories: selectedCats
+                    }));
+                }, 500);
+                
+                filteredItems = allQuestions.filter(q => {
+                    const text = (q.question || "").toLowerCase();
+                    const laws = (q.related_laws || []).join(" ").toLowerCase();
+                    const category = (q.category || "未分類");
+                    
+                    const matchesSearch = text.includes(query) || laws.includes(query) || category.toLowerCase().includes(query);
+                    const matchesCategory = selectedCats.includes(category);
+                    const matchesWrong = wrongOnly ? wrongQuestions.includes(q.id) : true;
+                    
+                    return matchesSearch && matchesCategory && matchesWrong;
+                });
+                
+                const totalPages = Math.ceil(filteredItems.length / itemsPerPage) || 1;
+                if (currentPage > totalPages) currentPage = totalPages;
+                
+                const startIndex = (currentPage - 1) * itemsPerPage;
+                const endIndex = startIndex + itemsPerPage;
+                const pageItems = filteredItems.slice(startIndex, endIndex);
+                
+                const container = document.getElementById('questionsContainer');
+                let htmlContent = '';
+                
+                if (pageItems.length === 0) {
+                    container.innerHTML = `<div class="text-center text-muted mt-5"><h5>找不到符合條件的題目</h5></div>`;
+                    renderPagination(totalPages);
+                    return;
+                }
+                
+                pageItems.forEach((q) => {
+                    const category = q.category || '未分類';
+                    const qId = q.id;
+                    const displayId = q.original_id || qId;
+                    const sessionData = sessionAnswers[qId];
+                    const isLocked = sessionData ? true : false;
+                    
+                    let options_html = "";
+                    const option_explanations = q.option_explanations || {};
+                    
+                    if (q.type === '是非題') {
+                        const isO = sessionData && sessionData.selected === 'O';
+                        const isX = sessionData && sessionData.selected === 'X';
+                        
+                        // AI usually outputs the single explanation for T/F under key "1"
+                        const tfExplanation = option_explanations['1'] || option_explanations['O'] || option_explanations['X'] || "無特定解析。";
+                        
+                        options_html += buildOptionHtml(qId, 'O', 'O', q.answer, isLocked, sessionData?.selected, tfExplanation);
+                        options_html += buildOptionHtml(qId, 'X', 'X', q.answer, isLocked, sessionData?.selected, tfExplanation);
+                    } else {
+                        (q.options || []).forEach((opt, idx) => {
+                            const opt_num = (idx + 1).toString();
+                            const explanation = option_explanations[opt_num] || "無特定解析。";
+                            options_html += buildOptionHtml(qId, opt_num, opt, q.answer, isLocked, sessionData?.selected, explanation);
+                        });
+                    }
+                    
+                    let laws_html = "";
+                    (q.related_laws || []).forEach(law => {
+                        laws_html += `<span class="badge bg-secondary laws-badge">${escapeHtml(law)}</span>`;
+                    });
+                    
+                    htmlContent += `
+                        <div class="col-12 question-item mb-4" id="q-card-${qId}">
+                            <div class="card question-card">
+                                <div class="card-header border-bottom-0 d-flex justify-content-between align-items-center" style="background-color: var(--bs-tertiary-bg);">
+                                    <div>
+                                        <span class="badge bg-primary category-badge">${escapeHtml(category)}</span><br>
+                                        <span class="fs-5"><strong>第 ${escapeHtml(displayId)} 題</strong> (${escapeHtml(q.type)})</span>
+                                    </div>
+                                    <button class="btn btn-sm btn-outline-secondary" onclick="resetQuestion('${qId}')" ${!isLocked ? 'style="display:none;"' : ''} id="btn-reset-${qId}">🔄 重新作答</button>
+                                </div>
+                                <div class="card-body">
+                                    <h5 class="card-title mb-4 question-text">${escapeHtml(q.question)}</h5>
+                                    <ul class="option-list">
+                                        ${options_html}
+                                    </ul>
+                                    <div class="mt-4">
+                                        <h6>📌 相關法條：</h6>
+                                        <div class="laws-text">${laws_html}</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                });
+                
+                container.innerHTML = htmlContent;
+                renderPagination(totalPages);
+            }
+            
+            function buildOptionHtml(qId, optKey, optText, correctAnswer, isLocked, selectedOptKey, explanation) {
+                let classes = "option-item";
+                let expStyle = "display: none;";
+                
+                if (isLocked) {
+                    classes += " locked";
+                    expStyle = "display: block;"; // Auto show explanation when answered
+                    
+                    if (optKey === selectedOptKey) {
+                        if (optKey === correctAnswer) {
+                            classes += " correct";
+                        } else {
+                            classes += " wrong";
+                        }
+                    } else if (optKey === correctAnswer) {
+                        classes += " correct locked-unselected";
+                    } else {
+                        classes += " locked-unselected";
+                    }
+                }
+                
+                return `
+                    <li class="${classes}" onclick="handleOptionClick('${qId}', '${optKey}', '${correctAnswer}', this)">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div class="option-text">${escapeHtml(optText)}</div>
+                        </div>
+                        <div class="option-explanation" style="${expStyle}">💡 解析：${escapeHtml(explanation)}</div>
+                    </li>
+                `;
+            }
+            
+            window.handleOptionClick = function(qId, selectedKey, correctKey, liElement) {
+                // If already locked, treat click on option as toggling the explanation
+                if (sessionAnswers[qId]) {
+                    const expElement = liElement.querySelector('.option-explanation');
+                    if (expElement) {
+                        expElement.style.display = (expElement.style.display === 'block') ? 'none' : 'block';
+                    }
+                    return;
+                }
+                
+                const isCorrect = selectedKey === correctKey;
+                
+                // Update Session state
+                sessionAnswers[qId] = {
+                    selected: selectedKey,
+                    isCorrect: isCorrect
+                };
+                
+                // Update Global Stats
+                userStats.answered += 1;
+                if (isCorrect) {
+                    userStats.correct += 1;
+                    // Remove from wrong questions if it was there
+                    wrongQuestions = wrongQuestions.filter(id => id !== qId);
+                } else {
+                    // Add to wrong questions if not already there
+                    if (!wrongQuestions.includes(qId)) {
+                        wrongQuestions.push(qId);
+                    }
+                }
+                
+                updateStatsUI();
+                
+                // Just re-render the current list to apply locks and colors
+                renderList();
+            };
+            
+            window.resetQuestion = function(qId) {
+                if (!sessionAnswers[qId]) return;
+                
+                // Backtrack stats
+                userStats.answered -= 1;
+                if (sessionAnswers[qId].isCorrect) {
+                    userStats.correct -= 1;
+                }
+                
+                delete sessionAnswers[qId];
+                updateStatsUI();
+                renderList();
+            };
+            
+            window.toggleExplanation = function(event, btnElement) {
+                // Stop the event from bubbling up to the option click handler
+                event.stopPropagation();
+                const expElement = btnElement.closest('.option-item').querySelector('.option-explanation');
+                if (expElement.style.display === 'block') {
+                    expElement.style.display = 'none';
+                } else {
+                    expElement.style.display = 'block';
+                }
+            };
+            
+            function renderPagination(totalPages) {
+                const pagination = document.getElementById('pagination');
+                let html = '';
+                
+                html += `
+                    <li class="page-item ${currentPage === 1 ? 'disabled' : ''}">
+                        <a class="page-link" href="#" data-page="${currentPage - 1}">上一頁</a>
+                    </li>
+                `;
+                
+                let startPage = Math.max(1, currentPage - 2);
+                let endPage = Math.min(totalPages, startPage + 4);
+                if (endPage - startPage < 4) {
+                    startPage = Math.max(1, endPage - 4);
+                }
+                
+                for (let i = startPage; i <= endPage; i++) {
+                    html += `
+                        <li class="page-item ${i === currentPage ? 'active' : ''}">
+                            <a class="page-link" href="#" data-page="${i}">${i}</a>
+                        </li>
+                    `;
+                }
+                
+                html += `
+                    <li class="page-item ${currentPage === totalPages ? 'disabled' : ''}">
+                        <a class="page-link" href="#" data-page="${currentPage + 1}">下一頁</a>
+                    </li>
+                `;
+                
+                pagination.innerHTML = html;
+                
+                pagination.querySelectorAll('.page-link').forEach(link => {
+                    link.addEventListener('click', function(e) {
+                        e.preventDefault();
+                        const targetPage = parseInt(this.getAttribute('data-page'));
+                        if (targetPage >= 1 && targetPage <= totalPages && !isNaN(targetPage)) {
+                            currentPage = targetPage;
+                            renderList();
+                            window.scrollTo(0, 0);
+                        }
+                    });
+                });
+            }
+        </script>
+        <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    </body>
+    </html>
+    

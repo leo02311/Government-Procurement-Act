@@ -1,0 +1,28 @@
+# 忽略所有檔案
+*
+!*/
+
+# 允許以下專案設定檔
+!.gitignore
+!README.md
+
+# 允許以下前端 HTML 檔案
+!graph.html
+!index.html
+!mindmap.html
+!thematic_mindmap.html
+
+# 允許以下知識圖譜資料與 OPML
+!legal_graph.json
+!bundled_nodes.json
+!semantic_edges.json
+!semantic_article_edges.json
+!all_laws_text.json
+!all_practices_analyzed.json
+!legal_mindmap.opml
+!thematic_mindmap.opml
+!law_keys.json
+!thematic_groups.json
+!graph_data.json
+!mindmap.md
+!thematic_mindmap.md

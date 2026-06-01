@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>政府採購法 - 實務主題心智圖</title>
+    <style>
+        body, html { margin: 0; padding: 0; height: 100vh; font-family: sans-serif; background-color: #ffffff; }
+        svg { width: 100vw; height: 100vh; }
+
+        /* Light mode default */
+        text { fill: #333333 !important; }
+        .markmap-foreign, .markmap-foreign div, .markmap-foreign p, .markmap-foreign span { color: #333333 !important; }
+
+        /* Dark mode */
+        @media (prefers-color-scheme: dark) {
+            body:not([data-theme="light"]), html:not([data-theme="light"]) { background-color: #121212; }
+            body:not([data-theme="light"]) text { fill: #ffffff !important; }
+            body:not([data-theme="light"]) .markmap-foreign, body:not([data-theme="light"]) .markmap-foreign div, body:not([data-theme="light"]) .markmap-foreign p, body:not([data-theme="light"]) .markmap-foreign span { color: #ffffff !important; }
+        }
+
+        /* Explicit Dark Mode Override */
+        [data-theme="dark"] { background-color: #121212 !important; }
+        [data-theme="dark"] text { fill: #ffffff !important; }
+        [data-theme="dark"] .markmap-foreign, [data-theme="dark"] .markmap-foreign div, [data-theme="dark"] .markmap-foreign p, [data-theme="dark"] .markmap-foreign span { color: #ffffff !important; }
+
+        /* Explicit Light Mode Override */
+        [data-theme="light"] { background-color: #ffffff !important; }
+        [data-theme="light"] text { fill: #333333 !important; }
+        [data-theme="light"] .markmap-foreign, [data-theme="light"] .markmap-foreign div, [data-theme="light"] .markmap-foreign p, [data-theme="light"] .markmap-foreign span { color: #333333 !important; }
+        
+        /* Fullscreen Loader */
+        #fullscreen-loader {
+            position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
+            background-color: #ffffff; z-index: 9999;
+            display: flex; flex-direction: column; justify-content: center; align-items: center;
+            transition: opacity 0.5s;
+        }
+        #fullscreen-loader h4 { margin: 0; padding-top: 15px; color: #f39c12; }
+        @media (prefers-color-scheme: dark) {
+            body:not([data-theme="light"]) #fullscreen-loader { background-color: #121212; }
+        }
+        [data-theme="dark"] #fullscreen-loader { background-color: #121212 !important; }
+    </style>
+</head>
+<body data-theme="auto">
+    <div id="fullscreen-loader">
+        <h4 style="text-shadow: 0 0 5px #f39c12;">載入實務主題心智圖中...</h4>
+        <div style="color: #888; margin-top: 10px; font-size: 0.9em;">由於法條內容龐大，初次解析約需 2~4 秒</div>
+    </div>
+    <div id="standalone-nav" style="display: none; position: fixed; top: 20px; right: 20px; z-index: 1000; background: var(--bg-color, rgba(20,20,20,0.8)); padding: 10px 15px; border-radius: 8px; font-size: 14px; border: 1px solid #444; box-shadow: 0 4px 10px rgba(0,0,0,0.5); backdrop-filter: blur(5px);">
+        <a href="graph.html" style="color: #39ff14; text-decoration: none; margin-right: 15px; font-weight: bold;">🌌 極限圖譜</a>
+        <a href="mindmap.html" style="color: #0d6efd; text-decoration: none; margin-right: 15px; font-weight: bold;">📜 法規章節</a>
+        <a href="thematic_mindmap.html" style="color: #f39c12; text-decoration: none; font-weight: bold;">💡 實務主題</a>
+    </div>
+    <script>
+        if (window.self === window.top) {
+            document.getElementById('standalone-nav').style.display = 'block';
+        }
+        window.addEventListener('message', (event) => {
+            if (event.data && event.data.theme) {
+                document.body.setAttribute('data-theme', event.data.theme);
+            }
+        });
+    </script>
+    <svg id="mindmap"></svg>
+    <script src="https://cdn.jsdelivr.net/npm/d3@7"></script>
+    <script src="https://cdn.jsdelivr.net/npm/markmap-view"></script>
+    <script src="https://cdn.jsdelivr.net/npm/markmap-lib"></script>
+    <script>
+        fetch('thematic_mindmap.md')
+            .then(res => res.text())
+            .then(markdown => {
+                const { Transformer, Markmap } = window.markmap;
+                const transformer = new Transformer();
+                const { root, features } = transformer.transform(markdown);
+                
+                // Free up memory from raw text
+                markdown = null;
+                
+                const mm = Markmap.create('#mindmap', {
+                    autoFit: false,
+                    color: (node) => {
+                        if (node.depth === 1) return '#f39c12';
+                        if (node.depth === 2) return '#0d6efd';
+                        if (node.depth === 3) return '#39ff14';
+                        return '#eeeeee';
+                    }
+                }, root);
+                
+                function collapseAll(node) {
+                    if (node.depth >= 1) {
+                        node.payload = { ...node.payload, fold: 1 };
+                    }
+                    if (node.children) {
+                        node.children.forEach(collapseAll);
+                    }
+                }
+                collapseAll(root);
+                mm.setData(root);
+                mm.fit();
+                
+                // Hide loader
+                const loader = document.getElementById('fullscreen-loader');
+                loader.style.opacity = '0';
+                setTimeout(() => loader.style.display = 'none', 500);
+            })
+            .catch(err => {
+                document.getElementById('fullscreen-loader').innerHTML = `<h4 style="color:red;">載入失敗</h4><p style="color:#aaa;">${err.message}</p>`;
+            });
+    </script>
+</body>
+</html>
