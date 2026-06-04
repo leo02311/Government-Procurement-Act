@@ -236,6 +236,7 @@
                             });
                             catAll.checked = allChecked;
                         }
+                        if (savedFilters.page) currentPage = savedFilters.page;
                     }
                 } catch(e) {}
                 
@@ -291,7 +292,8 @@
                     localStorage.setItem('pcc_filters', JSON.stringify({
                         query: document.getElementById('searchInput').value,
                         wrongOnly: wrongOnly,
-                        categories: selectedCats
+                        categories: selectedCats,
+                        page: currentPage
                     }));
                 }, 500);
                 
