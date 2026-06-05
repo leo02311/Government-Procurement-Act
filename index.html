@@ -95,16 +95,24 @@
                 <div class="col-12">
                     <input type="text" id="searchInput" class="form-control mb-3" placeholder="🔍 搜尋題目、關鍵字或法規名稱...">
                     
-                    <div class="d-flex justify-content-between align-items-center mb-2">
+                    <div class="d-flex flex-wrap justify-content-between align-items-center mb-2 gap-3">
                         <button class="btn btn-outline-primary" type="button" data-bs-toggle="collapse" data-bs-target="#categoryCollapse" aria-expanded="false">
                             📁 展開/隱藏 測驗分類設定
                         </button>
                         
-                        <div class="form-check form-switch fs-5">
-                            <input class="form-check-input" type="checkbox" id="check-wrong-only">
-                            <label class="form-check-label text-danger fw-bold" for="check-wrong-only">
-                                ❌ 僅顯示我的錯題本
-                            </label>
+                        <div class="d-flex gap-4 fs-5">
+                            <div class="form-check form-switch">
+                                <input class="form-check-input" type="checkbox" id="check-unanswered-only">
+                                <label class="form-check-label text-primary fw-bold" for="check-unanswered-only">
+                                    📝 僅顯示未作答
+                                </label>
+                            </div>
+                            <div class="form-check form-switch">
+                                <input class="form-check-input" type="checkbox" id="check-wrong-only">
+                                <label class="form-check-label text-danger fw-bold" for="check-wrong-only">
+                                    ❌ 僅顯示錯題本
+                                </label>
+                            </div>
                         </div>
                     </div>
                     
@@ -122,23 +130,18 @@
                                 </div>
                             </div>
                         </div>
-                        <h6 class="text-secondary mb-2">📁 分類篩選：</h6>
-                        <div class="category-checkboxes" style="max-height: 200px; overflow-y: auto;">
-                            <div class="form-check me-3">
+                        <h6 class="text-secondary mb-2">📁 分類篩選與進度：</h6>
+                        <div class="category-checkboxes" style="max-height: 250px; overflow-y: auto;">
+                            <div class="form-check me-3 w-100">
                                 <input class="form-check-input category-cb" type="checkbox" value="ALL" id="cat-all" checked>
                                 <label class="form-check-label fw-bold text-primary" for="cat-all">全選</label>
                             </div>
-                            <div class="w-100 border-bottom my-2"></div>
+                            <div class="w-100 border-bottom my-1"></div>
+                            <div id="dynamic-category-list" class="d-flex flex-wrap gap-2 w-100">
+                                <!-- Categories injected dynamically -->
+                            </div>
                             <script>
                                 const categories = ["工程及技術服務採購作業", "底價及價格分析", "採購契約", "政府採購全生命週期概論", "政府採購法之履約管理及驗收", "政府採購法之爭議處理", "政府採購法之總則、招標及決標", "政府採購法之罰則及附則", "最有利標及評選優勝廠商", "財物及勞務採購作業", "道德規範及違法處置", "錯誤採購態樣", "電子採購實務"];
-                                categories.forEach((c, idx) => {
-                                    document.write(`
-                                        <div class="form-check me-3" style="width: 200px;">
-                                            <input class="form-check-input category-cb" type="checkbox" value="${c}" id="cat-${idx}" checked>
-                                            <label class="form-check-label text-truncate" style="max-width: 170px;" title="${c}" for="cat-${idx}">${c}</label>
-                                        </div>
-                                    `);
-                                });
                             </script>
                         </div>
                     </div>
@@ -181,6 +184,7 @@
             
             // Local state for current session answers to keep track of locked questions
             let sessionAnswers = JSON.parse(localStorage.getItem('pcc_session_answers')) || {}; 
+            let lastAnsweredQuestionId = null;
             
             document.addEventListener("DOMContentLoaded", function() {
                 updateStatsUI();
@@ -234,6 +238,38 @@
                 localStorage.setItem('pcc_stats', JSON.stringify(userStats));
                 localStorage.setItem('pcc_wrong_questions', JSON.stringify(wrongQuestions));
                 localStorage.setItem('pcc_session_answers', JSON.stringify(sessionAnswers));
+                
+                // Update dynamic categories list
+                if (allQuestions && allQuestions.length > 0) {
+                    const catContainer = document.getElementById('dynamic-category-list');
+                    let catHtml = '';
+                    categories.forEach((c, idx) => {
+                        const catQs = allQuestions.filter(q => (q.category || '未分類') === c);
+                        const answeredInCat = catQs.filter(q => sessionAnswers[q.id]).length;
+                        const isChecked = document.getElementById(`cat-${idx}`) ? document.getElementById(`cat-${idx}`).checked : true;
+                        
+                        catHtml += `
+                            <div class="form-check me-3" style="width: 250px;">
+                                <input class="form-check-input category-cb" type="checkbox" value="${c}" id="cat-${idx}" ${isChecked ? 'checked' : ''}>
+                                <label class="form-check-label text-truncate" style="max-width: 220px;" title="${c}" for="cat-${idx}">
+                                    ${c} <span class="text-muted" style="font-size: 0.85em;">(${answeredInCat}/${catQs.length})</span>
+                                </label>
+                            </div>
+                        `;
+                    });
+                    catContainer.innerHTML = catHtml;
+                    
+                    // Re-bind events to dynamically created category checkboxes
+                    const catAll = document.getElementById('cat-all');
+                    const catCbs = document.querySelectorAll('.category-cb:not(#cat-all)');
+                    catCbs.forEach(cb => {
+                        cb.addEventListener('change', () => {
+                            const allChecked = Array.from(catCbs).every(c => c.checked);
+                            catAll.checked = allChecked;
+                            currentPage = 1; renderList();
+                        });
+                    });
+                }
             }
             
             function setupFilters() {
@@ -244,15 +280,20 @@
                         if (savedFilters.query) document.getElementById('searchInput').value = savedFilters.query;
                         if (savedFilters.wrongOnly) document.getElementById('check-wrong-only').checked = savedFilters.wrongOnly;
                         
+                        if (savedFilters.unansweredOnly) document.getElementById('check-unanswered-only').checked = savedFilters.unansweredOnly;
+                        
                         if (savedFilters.categories) {
                             const catAll = document.getElementById('cat-all');
-                            const catCbs = document.querySelectorAll('.category-cb:not(#cat-all)');
-                            let allChecked = true;
-                            catCbs.forEach(cb => {
-                                cb.checked = savedFilters.categories.includes(cb.value);
-                                if (!cb.checked) allChecked = false;
-                            });
-                            catAll.checked = allChecked;
+                            // Delay applying category checkboxes slightly so updateStatsUI finishes creating them
+                            setTimeout(() => {
+                                const catCbs = document.querySelectorAll('.category-cb:not(#cat-all)');
+                                let allChecked = true;
+                                catCbs.forEach(cb => {
+                                    cb.checked = savedFilters.categories.includes(cb.value);
+                                    if (!cb.checked) allChecked = false;
+                                });
+                                catAll.checked = allChecked;
+                            }, 50);
                         }
                         
                         if (savedFilters.types) {
@@ -271,21 +312,14 @@
                     debounceTimer = setTimeout(() => { currentPage = 1; renderList(); }, 300);
                 });
                 document.getElementById('check-wrong-only').addEventListener('change', () => { currentPage = 1; renderList(); });
+                document.getElementById('check-unanswered-only').addEventListener('change', () => { currentPage = 1; renderList(); });
                 
                 const catAll = document.getElementById('cat-all');
-                const catCbs = document.querySelectorAll('.category-cb:not(#cat-all)');
                 
                 catAll.addEventListener('change', (e) => {
+                    const catCbs = document.querySelectorAll('.category-cb:not(#cat-all)');
                     catCbs.forEach(cb => cb.checked = e.target.checked);
                     currentPage = 1; renderList();
-                });
-                
-                catCbs.forEach(cb => {
-                    cb.addEventListener('change', () => {
-                        const allChecked = Array.from(catCbs).every(c => c.checked);
-                        catAll.checked = allChecked;
-                        currentPage = 1; renderList();
-                    });
                 });
                 
                 const typeCbs = document.querySelectorAll('.type-cb');
@@ -311,6 +345,7 @@
             function renderList() {
                 const query = document.getElementById('searchInput').value.toLowerCase();
                 const wrongOnly = document.getElementById('check-wrong-only').checked;
+                const unansweredOnly = document.getElementById('check-unanswered-only').checked;
                 
                 // Get checked categories
                 const catCbs = document.querySelectorAll('.category-cb:not(#cat-all)');
@@ -325,6 +360,7 @@
                     localStorage.setItem('pcc_filters', JSON.stringify({
                         query: document.getElementById('searchInput').value,
                         wrongOnly: wrongOnly,
+                        unansweredOnly: unansweredOnly,
                         categories: selectedCats,
                         types: selectedTypes,
                         page: currentPage
@@ -342,7 +378,10 @@
                     const matchesType = selectedTypes.includes(type);
                     const matchesWrong = wrongOnly ? wrongQuestions.includes(q.id) : true;
                     
-                    return matchesSearch && matchesCategory && matchesType && matchesWrong;
+                    const isUnansweredOrLast = !sessionAnswers[q.id] || q.id === lastAnsweredQuestionId;
+                    const matchesUnanswered = unansweredOnly ? isUnansweredOrLast : true;
+                    
+                    return matchesSearch && matchesCategory && matchesType && matchesWrong && matchesUnanswered;
                 });
                 
                 const totalPages = Math.ceil(filteredItems.length / itemsPerPage) || 1;
@@ -471,6 +510,8 @@
                     isCorrect: isCorrect
                 };
                 
+                lastAnsweredQuestionId = qId;
+                
                 // Update Global Stats
                 userStats.answered += 1;
                 if (isCorrect) {
@@ -500,6 +541,7 @@
                 }
                 
                 delete sessionAnswers[qId];
+                if (lastAnsweredQuestionId === qId) lastAnsweredQuestionId = null;
                 updateStatsUI();
                 renderList();
             };
@@ -545,6 +587,15 @@
                     </li>
                 `;
                 
+                // Add Jump Input
+                html += `
+                    <li class="page-item ms-3 d-flex align-items-center">
+                        <span class="text-muted me-2">跳至</span>
+                        <input type="number" id="pageJumpInput" class="form-control form-control-sm text-center" style="width: 65px;" min="1" max="${totalPages}" value="${currentPage}">
+                        <span class="text-muted ms-2">/ ${totalPages} 頁</span>
+                    </li>
+                `;
+                
                 pagination.innerHTML = html;
                 
                 pagination.querySelectorAll('.page-link').forEach(link => {
@@ -558,6 +609,19 @@
                         }
                     });
                 });
+                
+                const jumpInput = document.getElementById('pageJumpInput');
+                if (jumpInput) {
+                    jumpInput.addEventListener('change', function() {
+                        let targetPage = parseInt(this.value);
+                        if (isNaN(targetPage)) return;
+                        if (targetPage < 1) targetPage = 1;
+                        if (targetPage > totalPages) targetPage = totalPages;
+                        currentPage = targetPage;
+                        renderList();
+                        window.scrollTo(0, 0);
+                    });
+                }
             }
         </script>
         <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
