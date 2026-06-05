@@ -184,7 +184,6 @@
             
             document.addEventListener("DOMContentLoaded", function() {
                 updateStatsUI();
-                setupFilters();
                 
                 // Fetch data asynchronously
                 fetch('all_practices_analyzed.json')
@@ -194,6 +193,8 @@
                     })
                     .then(data => {
                         allQuestions = data;
+                        renderCategoryCheckboxes();
+                        setupFilters();
                         filteredItems = [...allQuestions];
                         renderList();
                         
@@ -235,37 +236,47 @@
                 localStorage.setItem('pcc_wrong_questions', JSON.stringify(wrongQuestions));
                 localStorage.setItem('pcc_session_answers', JSON.stringify(sessionAnswers));
                 
-                // Update dynamic categories list
+                // Update dynamic categories list text only
                 if (allQuestions && allQuestions.length > 0) {
-                    const catContainer = document.getElementById('dynamic-category-list');
-                    let catHtml = '';
                     categories.forEach((c, idx) => {
-                        const catQs = allQuestions.filter(q => (q.category || '未分類') === c);
-                        const answeredInCat = catQs.filter(q => sessionAnswers[q.id]).length;
-                        const isChecked = document.getElementById(`cat-${idx}`) ? document.getElementById(`cat-${idx}`).checked : true;
-                        
-                        catHtml += `
-                            <div class="form-check me-3 mb-2">
-                                <input class="form-check-input category-cb" type="checkbox" value="${c}" id="cat-${idx}" ${isChecked ? 'checked' : ''}>
-                                <label class="form-check-label" title="${c}" for="cat-${idx}">
-                                    ${c} <span class="text-muted" style="font-size: 0.85em;">(${answeredInCat}/${catQs.length})</span>
-                                </label>
-                            </div>
-                        `;
-                    });
-                    catContainer.innerHTML = catHtml;
-                    
-                    // Re-bind events to dynamically created category checkboxes
-                    const catAll = document.getElementById('cat-all');
-                    const catCbs = document.querySelectorAll('.category-cb:not(#cat-all)');
-                    catCbs.forEach(cb => {
-                        cb.addEventListener('change', () => {
-                            const allChecked = Array.from(catCbs).every(c => c.checked);
-                            catAll.checked = allChecked;
-                            currentPage = 1; renderList();
-                        });
+                        const countSpan = document.getElementById(`cat-count-${idx}`);
+                        if (countSpan) {
+                            const catQs = allQuestions.filter(q => (q.category || '未分類') === c);
+                            const answeredInCat = catQs.filter(q => sessionAnswers[q.id]).length;
+                            countSpan.innerText = `(${answeredInCat}/${catQs.length})`;
+                        }
                     });
                 }
+            }
+            
+            function renderCategoryCheckboxes() {
+                const catContainer = document.getElementById('dynamic-category-list');
+                let catHtml = '';
+                categories.forEach((c, idx) => {
+                    const catQs = allQuestions.filter(q => (q.category || '未分類') === c);
+                    const answeredInCat = catQs.filter(q => sessionAnswers[q.id]).length;
+                    
+                    catHtml += `
+                        <div class="form-check me-3 mb-2">
+                            <input class="form-check-input category-cb" type="checkbox" value="${c}" id="cat-${idx}" checked>
+                            <label class="form-check-label" title="${c}" for="cat-${idx}">
+                                ${c} <span class="text-muted" id="cat-count-${idx}" style="font-size: 0.85em;">(${answeredInCat}/${catQs.length})</span>
+                            </label>
+                        </div>
+                    `;
+                });
+                catContainer.innerHTML = catHtml;
+                
+                // Bind events to dynamically created category checkboxes
+                const catAll = document.getElementById('cat-all');
+                const catCbs = document.querySelectorAll('.category-cb:not(#cat-all)');
+                catCbs.forEach(cb => {
+                    cb.addEventListener('change', () => {
+                        const allChecked = Array.from(catCbs).every(c => c.checked);
+                        catAll.checked = allChecked;
+                        currentPage = 1; renderList();
+                    });
+                });
             }
             
             function setupFilters() {
@@ -281,16 +292,13 @@
                         
                         if (savedFilters.categories) {
                             const catAll = document.getElementById('cat-all');
-                            // Delay applying category checkboxes slightly so updateStatsUI finishes creating them
-                            setTimeout(() => {
-                                const catCbs = document.querySelectorAll('.category-cb:not(#cat-all)');
-                                let allChecked = true;
-                                catCbs.forEach(cb => {
-                                    cb.checked = savedFilters.categories.includes(cb.value);
-                                    if (!cb.checked) allChecked = false;
-                                });
-                                catAll.checked = allChecked;
-                            }, 50);
+                            const catCbs = document.querySelectorAll('.category-cb:not(#cat-all)');
+                            let allChecked = true;
+                            catCbs.forEach(cb => {
+                                cb.checked = savedFilters.categories.includes(cb.value);
+                                if (!cb.checked) allChecked = false;
+                            });
+                            catAll.checked = allChecked;
                         }
                         
                         if (savedFilters.types) {
