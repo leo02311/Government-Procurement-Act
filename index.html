@@ -109,6 +109,20 @@
                     </div>
                     
                     <div class="collapse" id="categoryCollapse">
+                        <div class="mb-3 border-bottom pb-2">
+                            <h6 class="text-secondary mb-2">📌 題型篩選：</h6>
+                            <div class="d-flex flex-wrap gap-3">
+                                <div class="form-check">
+                                    <input class="form-check-input type-cb" type="checkbox" value="選擇題" id="type-mc" checked>
+                                    <label class="form-check-label fw-bold text-success" for="type-mc">選擇題</label>
+                                </div>
+                                <div class="form-check">
+                                    <input class="form-check-input type-cb" type="checkbox" value="是非題" id="type-tf" checked>
+                                    <label class="form-check-label fw-bold text-success" for="type-tf">是非題</label>
+                                </div>
+                            </div>
+                        </div>
+                        <h6 class="text-secondary mb-2">📁 分類篩選：</h6>
                         <div class="category-checkboxes" style="max-height: 200px; overflow-y: auto;">
                             <div class="form-check me-3">
                                 <input class="form-check-input category-cb" type="checkbox" value="ALL" id="cat-all" checked>
@@ -240,6 +254,13 @@
                             });
                             catAll.checked = allChecked;
                         }
+                        
+                        if (savedFilters.types) {
+                            const typeCbs = document.querySelectorAll('.type-cb');
+                            typeCbs.forEach(cb => {
+                                cb.checked = savedFilters.types.includes(cb.value);
+                            });
+                        }
                         if (savedFilters.page) currentPage = savedFilters.page;
                     }
                 } catch(e) {}
@@ -267,6 +288,11 @@
                     });
                 });
                 
+                const typeCbs = document.querySelectorAll('.type-cb');
+                typeCbs.forEach(cb => {
+                    cb.addEventListener('change', () => { currentPage = 1; renderList(); });
+                });
+                
                 document.getElementById('clear-records-btn')?.addEventListener('click', () => {
                     if(confirm('確定要清除所有作答紀錄與錯題本嗎？這將無法復原。')) {
                         localStorage.removeItem('pcc_stats');
@@ -290,6 +316,9 @@
                 const catCbs = document.querySelectorAll('.category-cb:not(#cat-all)');
                 const selectedCats = Array.from(catCbs).filter(cb => cb.checked).map(cb => cb.value);
                 
+                const typeCbs = document.querySelectorAll('.type-cb');
+                const selectedTypes = Array.from(typeCbs).filter(cb => cb.checked).map(cb => cb.value);
+                
                 // Save filters efficiently
                 clearTimeout(window.saveFiltersTimer);
                 window.saveFiltersTimer = setTimeout(() => {
@@ -297,6 +326,7 @@
                         query: document.getElementById('searchInput').value,
                         wrongOnly: wrongOnly,
                         categories: selectedCats,
+                        types: selectedTypes,
                         page: currentPage
                     }));
                 }, 500);
@@ -305,12 +335,14 @@
                     const text = (q.question || "").toLowerCase();
                     const laws = (q.related_laws || []).join(" ").toLowerCase();
                     const category = (q.category || "未分類");
+                    const type = (q.type || "");
                     
                     const matchesSearch = text.includes(query) || laws.includes(query) || category.toLowerCase().includes(query);
                     const matchesCategory = selectedCats.includes(category);
+                    const matchesType = selectedTypes.includes(type);
                     const matchesWrong = wrongOnly ? wrongQuestions.includes(q.id) : true;
                     
-                    return matchesSearch && matchesCategory && matchesWrong;
+                    return matchesSearch && matchesCategory && matchesType && matchesWrong;
                 });
                 
                 const totalPages = Math.ceil(filteredItems.length / itemsPerPage) || 1;
