@@ -70,8 +70,8 @@
             </div>
             
             <!-- 成績統計面板 -->
-            <div class="stats-panel row position-relative">
-                <button class="btn btn-sm btn-outline-danger position-absolute top-0 end-0 m-2" style="width: auto; z-index: 10;" id="clear-records-btn" title="清除所有作答進度與錯題本">🗑️ 清除紀錄</button>
+            <div class="stats-panel">
+                <div class="row">
                 <div class="col-4">
                     <div class="text-muted">作答題數</div>
                     <div class="stats-number" id="stat-answered">0</div>
@@ -83,6 +83,10 @@
                 <div class="col-4">
                     <div class="text-muted">正確率</div>
                     <div class="stats-number text-warning" id="stat-accuracy">0%</div>
+                </div>
+                </div>
+                <div class="text-end mt-2">
+                    <button class="btn btn-sm btn-outline-danger" id="clear-records-btn">🗑️ 清除紀錄</button>
                 </div>
             </div>
             
