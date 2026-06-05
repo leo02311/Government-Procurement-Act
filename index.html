@@ -95,24 +95,20 @@
                 <div class="col-12">
                     <input type="text" id="searchInput" class="form-control mb-3" placeholder="🔍 搜尋題目、關鍵字或法規名稱...">
                     
-                    <div class="d-flex flex-wrap justify-content-between align-items-center mb-2 gap-3">
+                    <div class="d-flex flex-wrap justify-content-between align-items-center mb-3 gap-3">
                         <button class="btn btn-outline-primary" type="button" data-bs-toggle="collapse" data-bs-target="#categoryCollapse" aria-expanded="false">
                             📁 展開/隱藏 測驗分類設定
                         </button>
                         
-                        <div class="d-flex gap-4 fs-5">
-                            <div class="form-check form-switch">
-                                <input class="form-check-input" type="checkbox" id="check-unanswered-only">
-                                <label class="form-check-label text-primary fw-bold" for="check-unanswered-only">
-                                    📝 僅顯示未作答
-                                </label>
-                            </div>
-                            <div class="form-check form-switch">
-                                <input class="form-check-input" type="checkbox" id="check-wrong-only">
-                                <label class="form-check-label text-danger fw-bold" for="check-wrong-only">
-                                    ❌ 僅顯示錯題本
-                                </label>
-                            </div>
+                        <div class="btn-group" role="group" aria-label="題目顯示模式">
+                            <input type="radio" class="btn-check filter-mode" name="displayMode" id="mode-all" value="all" checked>
+                            <label class="btn btn-outline-secondary fw-bold" for="mode-all">顯示全部</label>
+
+                            <input type="radio" class="btn-check filter-mode" name="displayMode" id="mode-unanswered" value="unanswered">
+                            <label class="btn btn-outline-primary fw-bold" for="mode-unanswered">📝 僅未作答</label>
+
+                            <input type="radio" class="btn-check filter-mode" name="displayMode" id="mode-wrong" value="wrong">
+                            <label class="btn btn-outline-danger fw-bold" for="mode-wrong">❌ 僅錯題</label>
                         </div>
                     </div>
                     
@@ -249,9 +245,9 @@
                         const isChecked = document.getElementById(`cat-${idx}`) ? document.getElementById(`cat-${idx}`).checked : true;
                         
                         catHtml += `
-                            <div class="form-check me-3" style="width: 250px;">
+                            <div class="form-check me-3 mb-2">
                                 <input class="form-check-input category-cb" type="checkbox" value="${c}" id="cat-${idx}" ${isChecked ? 'checked' : ''}>
-                                <label class="form-check-label text-truncate" style="max-width: 220px;" title="${c}" for="cat-${idx}">
+                                <label class="form-check-label" title="${c}" for="cat-${idx}">
                                     ${c} <span class="text-muted" style="font-size: 0.85em;">(${answeredInCat}/${catQs.length})</span>
                                 </label>
                             </div>
@@ -278,9 +274,10 @@
                     const savedFilters = JSON.parse(localStorage.getItem('pcc_filters'));
                     if (savedFilters) {
                         if (savedFilters.query) document.getElementById('searchInput').value = savedFilters.query;
-                        if (savedFilters.wrongOnly) document.getElementById('check-wrong-only').checked = savedFilters.wrongOnly;
-                        
-                        if (savedFilters.unansweredOnly) document.getElementById('check-unanswered-only').checked = savedFilters.unansweredOnly;
+                        if (savedFilters.displayMode) {
+                            const modeInput = document.getElementById('mode-' + savedFilters.displayMode);
+                            if (modeInput) modeInput.checked = true;
+                        }
                         
                         if (savedFilters.categories) {
                             const catAll = document.getElementById('cat-all');
@@ -311,8 +308,9 @@
                     clearTimeout(debounceTimer);
                     debounceTimer = setTimeout(() => { currentPage = 1; renderList(); }, 300);
                 });
-                document.getElementById('check-wrong-only').addEventListener('change', () => { currentPage = 1; renderList(); });
-                document.getElementById('check-unanswered-only').addEventListener('change', () => { currentPage = 1; renderList(); });
+                document.querySelectorAll('.filter-mode').forEach(radio => {
+                    radio.addEventListener('change', () => { currentPage = 1; renderList(); });
+                });
                 
                 const catAll = document.getElementById('cat-all');
                 
@@ -344,8 +342,10 @@
             
             function renderList() {
                 const query = document.getElementById('searchInput').value.toLowerCase();
-                const wrongOnly = document.getElementById('check-wrong-only').checked;
-                const unansweredOnly = document.getElementById('check-unanswered-only').checked;
+                const displayModeInput = document.querySelector('input[name="displayMode"]:checked');
+                const displayMode = displayModeInput ? displayModeInput.value : 'all';
+                const wrongOnly = displayMode === 'wrong';
+                const unansweredOnly = displayMode === 'unanswered';
                 
                 // Get checked categories
                 const catCbs = document.querySelectorAll('.category-cb:not(#cat-all)');
@@ -359,8 +359,7 @@
                 window.saveFiltersTimer = setTimeout(() => {
                     localStorage.setItem('pcc_filters', JSON.stringify({
                         query: document.getElementById('searchInput').value,
-                        wrongOnly: wrongOnly,
-                        unansweredOnly: unansweredOnly,
+                        displayMode: displayMode,
                         categories: selectedCats,
                         types: selectedTypes,
                         page: currentPage
