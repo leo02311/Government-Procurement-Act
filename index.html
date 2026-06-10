@@ -223,8 +223,8 @@
             document.addEventListener("DOMContentLoaded", function() {
                 updateStatsUI();
                 
-                // Fetch data asynchronously
-                fetch('all_practices_analyzed.json')
+                // Fetch data asynchronously (with cache buster)
+                fetch('all_practices_analyzed.json?v=' + new Date().getTime())
                     .then(response => {
                         if (!response.ok) throw new Error("網路錯誤或找不到題庫檔案");
                         return response.json();
