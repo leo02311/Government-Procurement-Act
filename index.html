@@ -413,12 +413,13 @@
                 }, 500);
                 
                 filteredItems = allQuestions.filter(q => {
+                    const qId = (q.id || "").toLowerCase();
                     const text = (q.question || "").toLowerCase();
                     const laws = (q.related_laws || []).join(" ").toLowerCase();
                     const category = (q.category || "未分類");
                     const type = (q.type || "");
                     
-                    const matchesSearch = text.includes(query) || laws.includes(query) || category.toLowerCase().includes(query);
+                    const matchesSearch = qId.includes(query) || text.includes(query) || laws.includes(query) || category.toLowerCase().includes(query);
                     const matchesCategory = selectedCats.includes(category);
                     const matchesType = selectedTypes.includes(type);
                     const matchesWrong = wrongOnly ? wrongQuestions.includes(q.id) : true;
